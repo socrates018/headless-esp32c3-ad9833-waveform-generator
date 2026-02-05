@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AD9833 Controller</title>
+<style>
+  body{font-family:Arial, sans-serif;margin:24px;max-width:520px}
+  .row{margin:16px 0}
+  label{display:block;margin-bottom:8px;font-weight:600}
+  input,select,button{font-size:18px;padding:10px;width:100%}
+  button{cursor:pointer}
+  .status{margin-top:16px;color:#0a7}
+  .radio-group{display:flex;gap:12px;flex-wrap:wrap}
+  .radio-card{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 14px;border:2px solid #ddd;border-radius:10px;
+    font-size:18px;cursor:pointer;user-select:none
+  }
+  .radio-card input{transform:scale(1.4)}
+  .row-inline{display:flex;gap:12px;align-items:center}
+  .row-inline > *{flex:1}
+  .radio-inline{display:flex;gap:10px;flex-wrap:wrap}
+  .radio-inline .radio-card{padding:8px 10px;font-size:16px}
+  .freq-input{margin-bottom:12px}
+</style>
+</head>
+<body>
+<h2>AD9833 Waveform Control</h2>
+<div class="row">
+  <label>Frequency</label>
+  <div class="row-inline">
+    <input id="freqValue" class="freq-input" type="number" min="0" step="1" value="1" />
+  </div>
+  <div class="radio-inline">
+    <label class="radio-card">
+      <input type="radio" name="mult" value="1" checked /> Hz
+    </label>
+    <label class="radio-card">
+      <input type="radio" name="mult" value="1000" /> kHz
+    </label>
+    <label class="radio-card">
+      <input type="radio" name="mult" value="1000000" /> MHz
+    </label>
+  </div>
+</div>
+<div class="row">
+  <label>Waveform</label>
+  <div class="radio-group">
+    <label class="radio-card">
+      <input type="radio" name="wave" value="sine" checked /> Sine
+    </label>
+    <label class="radio-card">
+      <input type="radio" name="wave" value="triangle" /> Triangle
+    </label>
+    <label class="radio-card">
+      <input type="radio" name="wave" value="square" /> Square
+    </label>
+  </div>
+</div>
+<div id="status" class="status"></div>
+<script>
+const statusEl = document.getElementById('status');
+
+function getWave() {
+  const selected = document.querySelector('input[name="wave"]:checked');
+  return selected ? selected.value : 'sine';
+}
+
+function getMult() {
+  const selected = document.querySelector('input[name="mult"]:checked');
+  return selected ? Number(selected.value) : 1;
+}
+
+let applyTimer = null;
+async function applySettings() {
+  const value = Number(document.getElementById('freqValue').value || 0);
+  const mult = getMult();
+  const freq = value * mult;
+  const wave = getWave();
+  const res = await fetch(`/set?freq=${encodeURIComponent(freq)}&wave=${encodeURIComponent(wave)}`);
+  const text = await res.text();
+  statusEl.textContent = text;
+}
+
+function scheduleApply() {
+  if (applyTimer) clearTimeout(applyTimer);
+  applyTimer = setTimeout(applySettings, 150);
+}
+
+document.getElementById('freqValue').addEventListener('input', scheduleApply);
+document.querySelectorAll('input[name="mult"]').forEach(r => r.addEventListener('change', scheduleApply));
+document.querySelectorAll('input[name="wave"]').forEach(r => r.addEventListener('change', scheduleApply));
+</script>
+</body>
+</html>

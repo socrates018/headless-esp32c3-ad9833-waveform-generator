@@ -1,0 +1,33 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "PlatformIO: Upload Filesystem Image",
+			"type": "shell",
+			"command": "C:\\Users\\socra\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"-t",
+				"uploadfs"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "PlatformIO: Upload Filesystem Image (COM5)",
+			"type": "shell",
+			"command": "C:\\Users\\socra\\.platformio\\penv\\Scripts\\platformio.exe",
+			"args": [
+				"run",
+				"-t",
+				"uploadfs",
+				"--upload-port",
+				"COM5"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
