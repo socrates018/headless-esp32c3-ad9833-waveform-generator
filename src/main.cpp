@@ -12,12 +12,12 @@ const char *AP_SSID = "AD9833-AP";
 const char *AP_PASS = "12345678";
 
 // --- AD9833 pins ---
-const uint8_t PIN_FSYNC = 5;   // CS
+const uint8_t PIN_FSYNC = 7;   // CS (ESP32-C3 default SS)
 
-// --- SPI default pins (ESP32 VSPI) ---
-const int PIN_SCLK = 18;  // SCK
-const int PIN_MISO = 19;  // MISO (unused by AD9833)
-const int PIN_MOSI = 23;  // MOSI
+// --- SPI default pins (ESP32-C3) ---
+const int PIN_SCLK = 4;  // SCK
+const int PIN_MISO = 5;  // MISO (unused by AD9833)
+const int PIN_MOSI = 6;  // MOSI
 
 // --- Onboard NeoPixel ---
 const uint8_t NEOPIXEL_PIN = 8; // ESP32-C3 DevKitM-1 onboard RGB LED
