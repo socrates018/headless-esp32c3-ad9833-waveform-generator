@@ -27,6 +27,26 @@ AD9833 AD(PIN_FSYNC);
 WebServer server(80);
 DNSServer dnsServer;
 
+// --- AD9833 clock and output limits ---
+static constexpr float AD9833_MCLK_HZ = 25000000.0f;
+static constexpr float AD9833_MAX_OUT_HZ = AD9833_MCLK_HZ / 2.0f;
+static constexpr uint16_t AD9833_MAX_PHASE_RAW = 4095;
+static constexpr uint32_t SWEEP_STEP_MS = 25;
+
+static bool outputEnabled = true;
+static float currentPhaseDeg = 0.0f;
+
+struct SweepState {
+  bool active = false;
+  float startHz = 0.0f;
+  float stopHz = 0.0f;
+  uint32_t durationMs = 0;
+  uint32_t startMs = 0;
+  uint32_t lastUpdateMs = 0;
+};
+
+static SweepState sweep;
+
 static void handleRoot() {
   File file = LittleFS.open("/index.html", "r");
   if (!file) {
@@ -58,19 +78,103 @@ static void handleSet() {
     waveOk = false;
   }
 
-  bool freqOk = isfinite(freq) && freq >= 0.0f && freq <= 10000000.0f;
+  bool freqOk = isfinite(freq) && freq >= 0.0f && freq <= AD9833_MAX_OUT_HZ;
   if (freqOk) {
     AD.setFrequency(freq);
+    sweep.active = false;
   }
 
   if (!waveOk || !freqOk) {
-    String msg = "Invalid parameters. freq=0..10000000, wave=sine|triangle|square";
+    String msg = "Invalid parameters. freq=0.." + String(AD9833_MAX_OUT_HZ, 0) + ", wave=sine|triangle|square";
     server.send(400, "text/plain", msg);
     return;
   }
 
   String msg = "OK: " + String(freq, 2) + " Hz, " + wave;
   server.send(200, "text/plain", msg);
+}
+
+static void handleOutput() {
+  String stateStr = server.arg("state");
+  if (stateStr.length() == 0) {
+    server.send(400, "text/plain", "Missing state (0 or 1)");
+    return;
+  }
+  int state = stateStr.toInt();
+  if (state != 0 && state != 1) {
+    server.send(400, "text/plain", "Invalid state (0 or 1)");
+    return;
+  }
+  outputEnabled = (state == 1);
+  AD.setPowerMode(outputEnabled ? AD9833_PWR_ON : AD9833_PWR_DISABLE_ALL);
+  String msg = outputEnabled ? "OK: Output ON" : "OK: Output OFF";
+  server.send(200, "text/plain", msg);
+}
+
+static void handlePhase() {
+  String degStr = server.arg("deg");
+  float deg = degStr.toFloat();
+  bool phaseOk = isfinite(deg) && deg >= 0.0f && deg <= 360.0f;
+  if (!phaseOk) {
+    server.send(400, "text/plain", "Invalid phase. deg=0..360");
+    return;
+  }
+  uint16_t raw = (uint16_t)roundf((deg / 360.0f) * AD9833_MAX_PHASE_RAW);
+  if (raw > AD9833_MAX_PHASE_RAW) {
+    raw = AD9833_MAX_PHASE_RAW;
+  }
+  AD.writePhaseRegister(0, raw);
+  currentPhaseDeg = deg;
+  String msg = "OK: Phase " + String(deg, 0) + " deg";
+  server.send(200, "text/plain", msg);
+}
+
+static void handleSweep() {
+  String startStr = server.arg("start");
+  String stopStr = server.arg("stop");
+  String durStr = server.arg("dur");
+  float startHz = startStr.toFloat();
+  float stopHz = stopStr.toFloat();
+  uint32_t durMs = (uint32_t)durStr.toInt();
+
+  bool startOk = isfinite(startHz) && startHz >= 0.0f && startHz <= AD9833_MAX_OUT_HZ;
+  bool stopOk = isfinite(stopHz) && stopHz >= 0.0f && stopHz <= AD9833_MAX_OUT_HZ;
+  bool durOk = durMs > 0;
+  if (!startOk || !stopOk || !durOk) {
+    server.send(400, "text/plain", "Invalid sweep. start/stop=0..max, dur>0");
+    return;
+  }
+
+  sweep.active = true;
+  sweep.startHz = startHz;
+  sweep.stopHz = stopHz;
+  sweep.durationMs = durMs;
+  sweep.startMs = millis();
+  sweep.lastUpdateMs = 0;
+
+  AD.setFrequency(startHz);
+  String msg = "OK: Sweep " + String(startHz, 2) + "->" + String(stopHz, 2) + " Hz in " + String(durMs) + " ms";
+  server.send(200, "text/plain", msg);
+}
+
+static void updateSweep() {
+  if (!sweep.active) {
+    return;
+  }
+  uint32_t now = millis();
+  uint32_t elapsed = now - sweep.startMs;
+  if (elapsed >= sweep.durationMs) {
+    AD.setFrequency(sweep.stopHz);
+    sweep.active = false;
+    return;
+  }
+  if (now - sweep.lastUpdateMs < SWEEP_STEP_MS) {
+    return;
+  }
+  sweep.lastUpdateMs = now;
+  float t = (float)elapsed / (float)sweep.durationMs;
+  float freq = sweep.startHz + (sweep.stopHz - sweep.startHz) * t;
+  AD.setFrequency(freq);
 }
 
 void setup() {
@@ -85,6 +189,8 @@ void setup() {
 
   AD.setWave(AD9833_SINE);
   AD.setFrequency(1000);
+  AD.setPowerMode(AD9833_PWR_ON);
+  AD.writePhaseRegister(0, 0);
 
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS mount failed");
@@ -101,6 +207,9 @@ void setup() {
 
   server.on("/", handleRoot);
   server.on("/set", handleSet);
+  server.on("/output", handleOutput);
+  server.on("/phase", handlePhase);
+  server.on("/sweep", handleSweep);
   server.on("/generate_204", handlePortal);
   server.on("/hotspot-detect.html", handlePortal);
   server.on("/redirect", handlePortal);
@@ -111,4 +220,5 @@ void setup() {
 void loop() {
   dnsServer.processNextRequest();
   server.handleClient();
+  updateSweep();
 }
