@@ -14,6 +14,9 @@ const char *AP_PASS = "12345678";
 // --- AD9833 pins ---
 const uint8_t PIN_FSYNC = 7;   // CS (ESP32-C3 default SS)
 
+// --- MCP41010 pins ---
+const uint8_t PIN_POT_CS = 2;  // Chip Select for digital potentiometer
+
 // --- SPI default pins (ESP32-C3) ---
 const int PIN_SCLK = 4;  // SCK
 const int PIN_MISO = 5;  // MISO (unused by AD9833)
@@ -34,6 +37,7 @@ static constexpr uint32_t SWEEP_STEP_MS = 25;
 
 static bool outputEnabled = true;
 static float currentPhaseDeg = 0.0f;
+static uint8_t currentAmplitude = 200;
 
 struct SweepState {
   bool active = false;
@@ -48,6 +52,16 @@ static SweepState sweep;
 
 static void applyOutputMode() {
   AD.setPowerMode(outputEnabled ? AD9833_PWR_ON : AD9833_PWR_DISABLE_ALL);
+}
+
+static void setAmplitude(uint8_t value) {
+  currentAmplitude = value;
+  SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(PIN_POT_CS, LOW);
+  SPI.transfer(0x11);
+  SPI.transfer(value);
+  digitalWrite(PIN_POT_CS, HIGH);
+  SPI.endTransaction();
 }
 
 static void handleRoot() {
@@ -130,6 +144,18 @@ static void handlePhase() {
   server.send(200, "text/plain", msg);
 }
 
+static void handleAmplitude() {
+  String valueStr = server.arg("value");
+  int value = valueStr.toInt();
+  if (valueStr.length() == 0 || value < 0 || value > 255) {
+    server.send(400, "text/plain", "Invalid amplitude. value=0..255");
+    return;
+  }
+  setAmplitude((uint8_t)value);
+  String msg = "OK: Amplitude " + String(value);
+  server.send(200, "text/plain", msg);
+}
+
 static void handleSweep() {
   String startStr = server.arg("start");
   String stopStr = server.arg("stop");
@@ -189,11 +215,14 @@ void setup() {
   pixel.show();
 
   SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, PIN_FSYNC);
+  pinMode(PIN_POT_CS, OUTPUT);
+  digitalWrite(PIN_POT_CS, HIGH);
   AD.begin();
 
   AD.setWave(AD9833_SINE);
   AD.setFrequency(1000);
   applyOutputMode();
+  setAmplitude(currentAmplitude);
   AD.writePhaseRegister(0, 0);
 
   if (!LittleFS.begin(true)) {
@@ -213,6 +242,7 @@ void setup() {
   server.on("/set", handleSet);
   server.on("/output", handleOutput);
   server.on("/phase", handlePhase);
+  server.on("/amp", handleAmplitude);
   server.on("/sweep", handleSweep);
   server.on("/generate_204", handlePortal);
   server.on("/hotspot-detect.html", handlePortal);

@@ -24,9 +24,6 @@
   .radio-inline{display:flex;gap:10px;flex-wrap:wrap}
   .radio-inline .radio-card{padding:8px 10px;font-size:16px}
   .freq-input{margin-bottom:12px}
-  .note{margin-top:8px;font-size:14px}
-  .note.info{color:#555}
-  .note.warn{color:#b35c00}
   @media (max-width:520px){
     body{margin:16px;max-width:100%;width:calc(100% - 32px)}
     .row-inline > *{min-width:100%}
@@ -54,6 +51,13 @@
   </div>
 </div>
 <div class="row">
+  <label>Amplitude</label>
+  <div class="row-inline">
+    <input id="ampValue" type="number" min="0" max="255" step="1" value="200" />
+    <input id="ampRange" type="range" min="0" max="255" step="1" value="200" />
+  </div>
+</div>
+<div class="row">
   <label>Waveform</label>
   <div class="radio-group">
     <label class="radio-card">
@@ -66,7 +70,6 @@
       <input type="radio" name="wave" value="square" /> Square
     </label>
   </div>
-  <div id="waveWarn" class="note info"></div>
 </div>
 <div class="row">
   <label>Output</label>
@@ -102,10 +105,11 @@
 <div id="status" class="status"></div>
 <script>
 const statusEl = document.getElementById('status');
-const waveWarnEl = document.getElementById('waveWarn');
 const outputBtn = document.getElementById('outputBtn');
 const phaseValueEl = document.getElementById('phaseValue');
 const phaseRangeEl = document.getElementById('phaseRange');
+const ampValueEl = document.getElementById('ampValue');
+const ampRangeEl = document.getElementById('ampRange');
 const sweepBtn = document.getElementById('sweepBtn');
 
 function getWave() {
@@ -118,16 +122,6 @@ function getMult() {
   return selected ? Number(selected.value) : 1;
 }
 
-function updateWaveWarning() {
-  const wave = getWave();
-  if (wave === 'square') {
-    waveWarnEl.textContent = '⚠️ Output: 3.3V/5V Logic';
-    waveWarnEl.className = 'note warn';
-  } else {
-    waveWarnEl.textContent = 'ℹ️ Output: ~0.6V';
-    waveWarnEl.className = 'note info';
-  }
-}
 
 let applyTimer = null;
 async function applySettings() {
@@ -171,6 +165,19 @@ function schedulePhaseApply() {
   phaseTimer = setTimeout(applyPhase, 150);
 }
 
+let ampTimer = null;
+async function applyAmplitude() {
+  const value = Number(ampValueEl.value || 0);
+  const res = await fetch(`/amp?value=${encodeURIComponent(value)}`);
+  const text = await res.text();
+  statusEl.textContent = text;
+}
+
+function scheduleAmpApply() {
+  if (ampTimer) clearTimeout(ampTimer);
+  ampTimer = setTimeout(applyAmplitude, 150);
+}
+
 async function startSweep() {
   const start = Number(document.getElementById('sweepStart').value || 0);
   const stop = Number(document.getElementById('sweepStop').value || 0);
@@ -183,10 +190,7 @@ async function startSweep() {
 
 document.getElementById('freqValue').addEventListener('input', scheduleApply);
 document.querySelectorAll('input[name="mult"]').forEach(r => r.addEventListener('change', scheduleApply));
-document.querySelectorAll('input[name="wave"]').forEach(r => r.addEventListener('change', () => {
-  updateWaveWarning();
-  scheduleApply();
-}));
+document.querySelectorAll('input[name="wave"]').forEach(r => r.addEventListener('change', scheduleApply));
 outputBtn.addEventListener('click', toggleOutput);
 phaseValueEl.addEventListener('input', () => {
   const v = Number(phaseValueEl.value || 0);
@@ -198,9 +202,18 @@ phaseRangeEl.addEventListener('input', () => {
   phaseValueEl.value = v;
   schedulePhaseApply();
 });
+ampValueEl.addEventListener('input', () => {
+  const v = Number(ampValueEl.value || 0);
+  ampRangeEl.value = v;
+  scheduleAmpApply();
+});
+ampRangeEl.addEventListener('input', () => {
+  const v = Number(ampRangeEl.value || 0);
+  ampValueEl.value = v;
+  scheduleAmpApply();
+});
 sweepBtn.addEventListener('click', startSweep);
 
-updateWaveWarning();
 updateOutputButton();
 </script>
 </body>
