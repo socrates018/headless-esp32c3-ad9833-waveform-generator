@@ -30,7 +30,6 @@ DNSServer dnsServer;
 // --- AD9833 clock and output limits ---
 static constexpr float AD9833_MCLK_HZ = 25000000.0f;
 static constexpr float AD9833_MAX_OUT_HZ = AD9833_MCLK_HZ / 2.0f;
-static constexpr uint16_t AD9833_MAX_PHASE_RAW = 4095;
 static constexpr uint32_t SWEEP_STEP_MS = 25;
 
 static bool outputEnabled = true;
@@ -119,11 +118,7 @@ static void handlePhase() {
     server.send(400, "text/plain", "Invalid phase. deg=0..360");
     return;
   }
-  uint16_t raw = (uint16_t)roundf((deg / 360.0f) * AD9833_MAX_PHASE_RAW);
-  if (raw > AD9833_MAX_PHASE_RAW) {
-    raw = AD9833_MAX_PHASE_RAW;
-  }
-  AD.writePhaseRegister(0, raw);
+  AD.setPhase(deg);
   currentPhaseDeg = deg;
   String msg = "OK: Phase " + String(deg, 0) + " deg";
   server.send(200, "text/plain", msg);
