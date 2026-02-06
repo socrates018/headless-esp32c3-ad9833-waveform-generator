@@ -46,6 +46,10 @@ struct SweepState {
 
 static SweepState sweep;
 
+static void applyOutputMode() {
+  AD.setPowerMode(outputEnabled ? AD9833_PWR_ON : AD9833_PWR_DISABLE_ALL);
+}
+
 static void handleRoot() {
   File file = LittleFS.open("/index.html", "r");
   if (!file) {
@@ -89,6 +93,8 @@ static void handleSet() {
     return;
   }
 
+  applyOutputMode();
+
   String msg = "OK: " + String(freq, 2) + " Hz, " + wave;
   server.send(200, "text/plain", msg);
 }
@@ -105,7 +111,7 @@ static void handleOutput() {
     return;
   }
   outputEnabled = (state == 1);
-  AD.setPowerMode(outputEnabled ? AD9833_PWR_ON : AD9833_PWR_DISABLE_ALL);
+  applyOutputMode();
   String msg = outputEnabled ? "OK: Output ON" : "OK: Output OFF";
   server.send(200, "text/plain", msg);
 }
@@ -148,6 +154,7 @@ static void handleSweep() {
   sweep.lastUpdateMs = 0;
 
   AD.setFrequency(startHz);
+  applyOutputMode();
   String msg = "OK: Sweep " + String(startHz, 2) + "->" + String(stopHz, 2) + " Hz in " + String(durMs) + " ms";
   server.send(200, "text/plain", msg);
 }
@@ -160,6 +167,7 @@ static void updateSweep() {
   uint32_t elapsed = now - sweep.startMs;
   if (elapsed >= sweep.durationMs) {
     AD.setFrequency(sweep.stopHz);
+    applyOutputMode();
     sweep.active = false;
     return;
   }
@@ -170,6 +178,7 @@ static void updateSweep() {
   float t = (float)elapsed / (float)sweep.durationMs;
   float freq = sweep.startHz + (sweep.stopHz - sweep.startHz) * t;
   AD.setFrequency(freq);
+  applyOutputMode();
 }
 
 void setup() {
@@ -184,7 +193,7 @@ void setup() {
 
   AD.setWave(AD9833_SINE);
   AD.setFrequency(1000);
-  AD.setPowerMode(AD9833_PWR_ON);
+  applyOutputMode();
   AD.writePhaseRegister(0, 0);
 
   if (!LittleFS.begin(true)) {
