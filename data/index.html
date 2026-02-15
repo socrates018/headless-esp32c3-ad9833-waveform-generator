@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AD9833 Control</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 10px;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AD9833 Control</h1>
+    <input type="number" id="freq" placeholder="Frequency (Hz)" value="1000">
+    <select id="wave">
+        <option value="0">Sine</option>
+        <option value="1">Triangle</option>
+        <option value="2">Square</option>
+    </select>
+    <div id="status"></div>
+
+    <script>
+        async function send() {
+            const freq = document.getElementById('freq').value;
+            const wave = document.getElementById('wave').value;
+            const status = document.getElementById('status');
+            
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({frequency: parseInt(freq), waveform: parseInt(wave)})
+                });
+                
+                status.textContent = res.ok ? 'OK' : 'Error';
+            } catch(e) {
+                status.textContent = 'Network error';
+            }
+        }
+        
+        document.getElementById('freq').addEventListener('change', send);
+        document.getElementById('wave').addEventListener('change', send);
+    </script>
+</body>
+</html>
